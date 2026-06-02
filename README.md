@@ -30,6 +30,7 @@ Wire the two boards with TX crossed to RX:
 ```
 node_lan  GPIO13 (TX) ──────── GPIO12 (RX)  node_iot
 node_lan  GPIO12 (RX) ──────── GPIO13 (TX)  node_iot
+node_lan  VDD         ──────── VDD          node_iot
 node_lan  GND         ──────── GND          node_iot
 ```
 
