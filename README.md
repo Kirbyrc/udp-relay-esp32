@@ -1,4 +1,4 @@
-# UDP Broadcast Relay — using ESP32-S3
+# UDP Broadcast Relay — using ESP32-S3-Zero
 
 An ESP32 port of [udp-broadcast-relay-redux](https://github.com/udp-redux/udp-broadcast-relay-redux) (GPL-2.0) to an esp32 implementation.
 
