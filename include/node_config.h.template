@@ -1,0 +1,12 @@
+// Copy to node_config.h and fill in credentials. node_config.h is gitignored.
+#pragma once
+
+#if defined(NODE_LAN)
+#  define WIFI_SSID  "lan-ssid"
+#  define WIFI_PASS  "lan-password"
+#elif defined(NODE_IOT)
+#  define WIFI_SSID  "iot-ssid"
+#  define WIFI_PASS  "iot-password"
+#else
+#  error "Add -DNODE_LAN=1 or -DNODE_IOT=1 to build_flags in platformio.ini"
+#endif
