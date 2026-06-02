@@ -41,15 +41,15 @@ node_lan  GND         ──────── GND          node_iot
 ```
   [ LAN network ]                          [ IoT network ]
   192.168.1.x/24                           192.168.10.x/24
-       │                                         │
+       │                                          │
   ┌────┴────────────────┐      UART       ┌───────┴───────────────┐
-  │     node_lan        │◄───921600───────►│     node_iot          │
+  │     node_lan        │◄───921600──────►│     node_iot          │
   │  ESP32-S3-Zero      │  GPIO13↔GPIO12  │  ESP32-S3-Zero        │
-  │                     │                 │                        │
-  │  WiFi: LAN SSID     │                 │  WiFi: IoT SSID        │
-  │  SOCK_RAW recv      │                 │  SOCK_RAW recv         │
-  │  lwIP raw_pcb send  │                 │  lwIP raw_pcb send     │
-  └────────────────────┘                 └────────────────────────┘
+  │                     │                 │                       │
+  │  WiFi: LAN SSID     │                 │  WiFi: IoT SSID       │
+  │  SOCK_RAW recv      │                 │  SOCK_RAW recv        │
+  │  lwIP raw_pcb send  │                 │  lwIP raw_pcb send    │
+  └─────────────────────┘                 └───────────────────────┘
 ```
 
 Each board:
