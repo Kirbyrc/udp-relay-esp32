@@ -54,7 +54,7 @@ node_lan  GND         ──────── GND          node_iot
 
 Each board:
 1. Joins its WiFi network and opens a `SOCK_RAW IPPROTO_UDP` socket to receive all UDP traffic
-2. Filters for packets destined to `RELAY_PORT` (default 65001)
+2. Filters for packets destined to any port in `RELAY_PORT_LIST` (default: 65001, 6666, 6667)
 3. Applies TTL-based loop prevention — packets whose TTL matches `RELAY_ID + 64` originated from the relay and are dropped
 4. Forwards qualifying packets to the other interface: either WiFi (via lwIP raw_pcb) or UART (via the framed serial link)
 5. Rewrites the destination address to the broadcast address of the outgoing interface
@@ -111,7 +111,9 @@ Shared settings are in `include/config.h`:
 | Define | Default | Description |
 |--------|---------|-------------|
 | `RELAY_ID` | 1 | Instance ID (1–99); sets outgoing TTL to `RELAY_ID + 64` |
-| `RELAY_PORT` | 65001 | UDP port to relay |
+| `RELAY_PORT_LIST` | `{ 65001, 6666, 6667 }` | UDP ports to relay (HDHomeRun + Tuya discovery) |
+| `MDNS_NAME_LAN` | `"udp-relay-lan"` | mDNS hostname for the LAN node (`udp-relay-lan.local`) |
+| `MDNS_NAME_IOT` | `"udp-relay-iot"` | mDNS hostname for the IoT node (`udp-relay-iot.local`) |
 | `LINK_BAUD` | 921600 | UART baud rate |
 | `LINK_RX_PIN` | 12 | UART RX GPIO |
 | `LINK_TX_PIN` | 13 | UART TX GPIO |
@@ -126,7 +128,7 @@ The original program is configured entirely via command-line arguments at runtim
 | Original argument | Example | Maps to | File |
 |-------------------|---------|---------|------|
 | `--id <n>` | `--id 1` | `#define RELAY_ID 1` | `include/config.h` |
-| `--port <port>` | `--port 65001` | `#define RELAY_PORT 65001` | `include/config.h` |
+| `--port <port>` | `--port 65001` | `RELAY_PORT_LIST { 65001, ... }` | `include/config.h` |
 | `--dev <iface>` (first) | `--dev eth0` | `WIFI_SSID` / `WIFI_PASS` under `NODE_LAN` | `include/node_config.h` |
 | `--dev <iface>` (second) | `--dev wlan1` | `WIFI_SSID` / `WIFI_PASS` under `NODE_IOT` | `include/node_config.h` |
 | `-f` (fork/daemonize) | `-f` | Not applicable — no OS process model | — |
@@ -136,9 +138,28 @@ The original program is configured entirely via command-line arguments at runtim
 
 **`--id`** must be unique per relay pair on a network. If you run multiple relay pairs simultaneously (e.g. relaying two different ports), give each pair a different `RELAY_ID` and rebuild both nodes. The ID sets the outgoing TTL (`RELAY_ID + 64`), which is how the relay detects and drops its own reflected packets.
 
-**`--port`** in the original can be specified multiple times to relay several ports at once. This port relays a single port. To relay additional ports, `RELAY_PORT` would need to become a list and the filter in `poll_wifi()` updated accordingly.
+**`--port`** in the original can be specified multiple times to relay several ports at once. This port supports multiple ports via `RELAY_PORT_LIST` in `config.h`. Add or remove port numbers from that list and reflash both nodes.
 
 **`--dev`** in the original takes Linux interface names (`eth0`, `wlan0`, etc.) and can accept more than two. Here the two interfaces are fixed: the board's WiFi connection and the UART link to the peer board. The WiFi interface is configured implicitly by the credentials in `node_config.h`; the UART link is always present.
+
+---
+
+## Web interface
+
+Each board runs a web server on port 80 accessible at:
+
+| Node | URL (IP) | URL (mDNS) |
+|------|----------|------------|
+| LAN | `http://<ip>/` | `http://udp-relay-lan.local/` |
+| IoT | `http://<ip>/` | `http://udp-relay-iot.local/` |
+
+The page displays:
+- **IP address**, **MAC address**, **RSSI** (refreshed every 5 seconds), and **relay ports** as static cards at the top
+- A **scrolling packet log** fed by Server-Sent Events (SSE), showing every packet the board receives or forwards in real time
+- **Colour coding**: WiFi RX = blue, UART TX = green, UART RX = orange, WiFi TX = purple, drops = red
+- **Pause/resume** scrolling by clicking the log area
+
+When a browser connects it receives the last 80 log lines as history before live streaming begins.
 
 ---
 
@@ -185,17 +206,22 @@ When one board reboots (e.g. after a reflash) while the other is already running
 ## File structure
 
 ```
-udp-relay2/
+udp-relay/
 ├── include/
-│   ├── config.h              # Shared constants (port, GPIO, timing)
+│   ├── config.h              # Shared constants (ports, mDNS names, GPIO, timing)
 │   ├── node_config.h         # WiFi credentials — gitignored, not committed
 │   └── node_config.h.template
 ├── src/
-│   ├── main.cpp              # Arduino setup/loop, LED control, status printing
+│   ├── main.cpp              # Arduino setup/loop, LED control, mDNS, status printing
 │   ├── relay.h               # Public relay API
 │   ├── relay.cpp             # Core relay logic (port of original main.c)
 │   ├── iface_uart.h          # UART framing interface (stable — changing requires both nodes reflashed)
-│   └── iface_uart.cpp        # UART framing implementation
+│   ├── iface_uart.cpp        # UART framing implementation
+│   ├── web_ui.h              # Web interface API
+│   └── web_ui.cpp            # HTTP server, SSE log stream, embedded HTML
+├── reference/
+│   └── main.c                # Original Linux source for comparison
+├── main_c_to_relay_cpp.diff  # Diff of original vs ESP32 port
 └── platformio.ini            # Two build environments: node_lan, node_iot
 ```
 

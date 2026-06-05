@@ -1,14 +1,18 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <Adafruit_NeoPixel.h>
 #include "config.h"
 #include "relay.h"
 #include "iface_uart.h"
+#include "web_ui.h"
 
 #if defined(NODE_LAN)
-static const char *NODE_NAME = "LAN";
+static const char *NODE_NAME  = "LAN";
+static const char *MDNS_NAME  = MDNS_NAME_LAN;
 #else
-static const char *NODE_NAME = "IOT";
+static const char *NODE_NAME  = "IOT";
+static const char *MDNS_NAME  = MDNS_NAME_IOT;
 #endif
 
 static Adafruit_NeoPixel s_led(LED_COUNT, LED_PIN, NEO_RGB + NEO_KHZ800);
@@ -33,6 +37,9 @@ static void wifi_connect() {
     Serial.printf(" connected  IP=%s  RSSI=%d dBm\n",
                   WiFi.localIP().toString().c_str(), WiFi.RSSI());
     Serial.flush();
+
+    MDNS.begin(MDNS_NAME);
+    MDNS.addService("http", "tcp", 80);
 }
 
 static void uart_wait() {
@@ -82,8 +89,8 @@ void setup() {
     s_led.setBrightness(30);
     led_set(32, 0, 0);
 
-    Serial.printf("\n=== udp-broadcast-relay-redux  node=%s  id=%d  port=%d ===\n",
-                  NODE_NAME, RELAY_ID, RELAY_PORT);
+    Serial.printf("\n=== udp-broadcast-relay-redux  node=%s  id=%d ===\n",
+                  NODE_NAME, RELAY_ID);
     Serial.flush();
 
     // Stage 1: WiFi — loops until connected, red LED
@@ -96,6 +103,9 @@ void setup() {
 
     // Stage 3: UART link — loops until peer responds, yellow LED
     uart_wait();
+
+    // Stage 4: web UI — starts after WiFi and UART are confirmed up
+    web_ui_init(NODE_NAME, MDNS_NAME);
 }
 
 void loop() {

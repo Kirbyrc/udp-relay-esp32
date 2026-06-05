@@ -17,6 +17,7 @@
 #include "relay.h"
 #include "iface_uart.h"
 #include "config.h"
+#include "web_ui.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -29,7 +30,7 @@
 
 // ── Debug output ─────────────────────────────────────────────────────────────
 
-#define DPRINT(...) Serial.printf(__VA_ARGS__)
+#define DPRINT(...) web_ui_log(__VA_ARGS__)
 
 // Format a network-byte-order IP address into a caller-supplied 16-byte buffer
 static const char *fmt_ip(uint32_t ip_nbo, char *buf) {
@@ -45,6 +46,17 @@ static const char *fmt_ip(uint32_t ip_nbo, char *buf) {
 #define UDPHEADER_LEN 8
 #define HEADER_LEN    (IPHEADER_LEN + UDPHEADER_LEN)
 #define TTL_ID_OFFSET 64
+
+// ── Port list ─────────────────────────────────────────────────────────────────
+
+static const uint16_t s_ports[] = RELAY_PORT_LIST;
+static const int      s_nports  = (int)(sizeof(s_ports) / sizeof(s_ports[0]));
+
+static bool is_relay_port(uint16_t port) {
+    for (int i = 0; i < s_nports; i++)
+        if (s_ports[i] == port) return true;
+    return false;
+}
 
 // ── struct Iface (mirrors the original) ──────────────────────────────────────
 
@@ -139,7 +151,7 @@ static void wifi_send(struct in_addr src_addr, struct in_addr dst_addr,
 
 static void forward_to_all(struct Iface *fromIface,
                             struct in_addr origFromAddress, uint16_t origFromPort,
-                            struct in_addr rcv_inaddr,
+                            struct in_addr rcv_inaddr, uint16_t dstPort,
                             int payload_len)
 {
     for (int iIf = 0; iIf < maxifs; iIf++) {
@@ -151,7 +163,7 @@ static void forward_to_all(struct Iface *fromIface,
         // Source address: no -s flag, always use the original sender
         struct in_addr fromAddress = origFromAddress;
         uint16_t       fromPort    = origFromPort;
-        uint16_t       toPort      = RELAY_PORT;
+        uint16_t       toPort      = dstPort;
 
         // Destination address rewriting (same logic as the original)
         struct in_addr toAddress;
@@ -295,8 +307,10 @@ void relay_init() {
             Serial.printf("[relay] bind errno=%d\n", errno);
     }
 
-    Serial.printf("[relay] ready  id=%d  ttl=%d  port=%d\n",
-                  RELAY_ID, s_ttl, RELAY_PORT);
+    Serial.printf("[relay] ready  id=%d  ttl=%d  ports=", RELAY_ID, s_ttl);
+    for (int i = 0; i < s_nports; i++)
+        Serial.printf("%s%d", i ? "," : "", s_ports[i]);
+    Serial.println();
 }
 
 // ── poll_wifi ─────────────────────────────────────────────────────────────────
@@ -310,9 +324,9 @@ static void poll_wifi() {
     int total = recvmsg(rcv_sock, &msg, MSG_DONTWAIT);
     if (total < HEADER_LEN) return;
 
-    // Filter: only process packets destined for our relay port
+    // Filter: only process packets destined for a relay port
     uint16_t dst_port = ntohs(*(uint16_t *)(gram + 22));
-    if (dst_port != RELAY_PORT) return;
+    if (!is_relay_port(dst_port)) return;
 
     // Loop prevention — same check as the original
     int rcv_ttl = gram[8];
@@ -336,11 +350,11 @@ static void poll_wifi() {
         char sa[16], da[16];
         DPRINT("<- WiFi  %s:%u -> %s:%u  len=%d  ttl=%d\n",
                fmt_ip(origFromAddress.s_addr, sa), origFromPort,
-               fmt_ip(rcv_inaddr.s_addr,      da), RELAY_PORT,
+               fmt_ip(rcv_inaddr.s_addr,      da), dst_port,
                payload_len, rcv_ttl);
     }
 
-    forward_to_all(&ifs[0], origFromAddress, origFromPort, rcv_inaddr, payload_len);
+    forward_to_all(&ifs[0], origFromAddress, origFromPort, rcv_inaddr, dst_port, payload_len);
 }
 
 // ── poll_uart ─────────────────────────────────────────────────────────────────
@@ -366,6 +380,7 @@ static void poll_uart() {
     memcpy(&origFromAddress.s_addr, uart_gram + 12, 4);
 
     uint16_t origFromPort = ntohs(*(uint16_t *)(uart_gram + 20));
+    uint16_t dstPort      = ntohs(*(uint16_t *)(uart_gram + 22));
     int      payload_len  = total - HEADER_LEN;
 
     s_stats.uart_rx++;
@@ -373,14 +388,14 @@ static void poll_uart() {
         char sa[16], da[16];
         DPRINT("<- UART  %s:%u -> %s:%u  len=%d\n",
                fmt_ip(origFromAddress.s_addr, sa), origFromPort,
-               fmt_ip(rcv_inaddr.s_addr,      da), RELAY_PORT,
+               fmt_ip(rcv_inaddr.s_addr,      da), dstPort,
                payload_len);
     }
 
     // Copy payload into gram so forward_to_all() can reference it
     memcpy(gram + HEADER_LEN, uart_gram + HEADER_LEN, payload_len);
 
-    forward_to_all(&ifs[1], origFromAddress, origFromPort, rcv_inaddr, payload_len);
+    forward_to_all(&ifs[1], origFromAddress, origFromPort, rcv_inaddr, dstPort, payload_len);
 }
 
 // ── relay_loop ───────────────────────────────────────────────────────────────
