@@ -61,6 +61,10 @@ h1{color:#fff;font-size:1.2em;margin-bottom:14px}
 <h1>UDP Relay &mdash; %NODE_NAME%</h1>
 <div class="stats">
   <div class="stat">
+    <div class="stat-label">mDNS Name</div>
+    <div class="stat-value">%MDNS_NAME%.local</div>
+  </div>
+  <div class="stat">
     <div class="stat-label">IP Address</div>
     <div class="stat-value">%NODE_IP%</div>
   </div>
@@ -75,10 +79,6 @@ h1{color:#fff;font-size:1.2em;margin-bottom:14px}
   <div class="stat">
     <div class="stat-label">Relay Ports</div>
     <div class="stat-value">%RELAY_PORTS%</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">mDNS Name</div>
-    <div class="stat-value">%MDNS_NAME%.local</div>
   </div>
 </div>
 <div id="hint">Click log to pause / resume scrolling</div>
@@ -150,7 +150,7 @@ void web_ui_init(const char *node_name, const char *mdns_name) {
     s_mutex     = xSemaphoreCreateMutex();
 
     s_server.on("/", HTTP_GET, [](AsyncWebServerRequest *req) {
-        req->send_P(200, "text/html", HTML, tpl);
+        req->send(200, "text/html", HTML, tpl);
     });
 
     s_server.on("/status", HTTP_GET, [](AsyncWebServerRequest *req) {

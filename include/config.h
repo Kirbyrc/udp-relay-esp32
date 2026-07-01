@@ -25,4 +25,4 @@
 #define MDNS_NAME_IOT   "udp-relay-iot"
 
 // Periodic status print interval (ms)
-#define STATUS_INTERVAL_MS  15000
+#define STATUS_INTERVAL_MS  60000
