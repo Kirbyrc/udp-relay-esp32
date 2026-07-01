@@ -1,3 +1,7 @@
+// Ported from udp-broadcast-relay-redux (https://github.com/udp-redux/udp-broadcast-relay-redux)
+// Original work Copyright (C) the udp-broadcast-relay-redux contributors
+// This file is licensed under GPL-2.0 — see LICENSE in the project root.
+
 /*
  * Faithful ESP32 port of udp-broadcast-relay-redux (main.c).
  *
