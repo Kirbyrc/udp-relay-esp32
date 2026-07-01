@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
+#include "relay.h"
 #include <freertos/semphr.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -45,6 +46,9 @@ h1{color:#fff;font-size:1.2em;margin-bottom:14px}
 .stat{background:#1e1e1e;border:1px solid #333;border-radius:4px;padding:8px 14px;min-width:155px}
 .stat-label{font-size:.7em;color:#666;text-transform:uppercase;letter-spacing:1px}
 .stat-value{font-size:1.05em;color:#fff;margin-top:3px}
+#testbtn{margin-bottom:8px;padding:7px 16px;background:#1e3a5f;border:1px solid #2a6099;border-radius:4px;color:#7ec8e3;font-family:inherit;font-size:.85em;cursor:pointer}
+#testbtn:hover{background:#2a4a6f}
+#testbtn:disabled{opacity:.5;cursor:default}
 #hint{font-size:.7em;color:#555;margin-bottom:6px}
 #wrap{background:#0a0a0a;border:1px solid #333;border-radius:4px;padding:10px;
       height:calc(100vh - 168px);overflow-y:auto}
@@ -81,6 +85,7 @@ h1{color:#fff;font-size:1.2em;margin-bottom:14px}
     <div class="stat-value">%RELAY_PORTS%</div>
   </div>
 </div>
+<button id="testbtn" onclick="sendTest()">Send Test Packet (port 6666)</button>
 <div id="hint">Click log to pause / resume scrolling</div>
 <div id="wrap"><div id="log"></div></div>
 <script>
@@ -109,6 +114,16 @@ function append(text) {
 
 const es = new EventSource('/events');
 es.onmessage = e => append(e.data);
+
+function sendTest() {
+  const btn = document.getElementById('testbtn');
+  const label = btn.textContent;
+  btn.disabled = true;
+  fetch('/test', {method:'POST'})
+    .then(r => r.json())
+    .then(d => { btn.textContent = d.ok ? 'Sent!' : 'Failed'; setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 2000); })
+    .catch(() => { btn.textContent = 'Error'; setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 2000); });
+}
 
 // Refresh RSSI every 5 s
 setInterval(() => {
@@ -151,6 +166,11 @@ void web_ui_init(const char *node_name, const char *mdns_name) {
 
     s_server.on("/", HTTP_GET, [](AsyncWebServerRequest *req) {
         req->send(200, "text/html", HTML, tpl);
+    });
+
+    s_server.on("/test", HTTP_POST, [](AsyncWebServerRequest *req) {
+        relay_inject_test(6666);
+        req->send(200, "application/json", "{\"ok\":true}");
     });
 
     s_server.on("/status", HTTP_GET, [](AsyncWebServerRequest *req) {

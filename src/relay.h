@@ -20,3 +20,7 @@ struct RelayStats {
 };
 
 void relay_get_stats(RelayStats *out);
+
+// Inject a synthetic test packet as if received from WiFi on the given port.
+// The packet is forwarded to UART (and logged) without going over the network.
+void relay_inject_test(uint16_t port);

@@ -404,3 +404,21 @@ void relay_loop() {
     poll_wifi();
     poll_uart();
 }
+
+void relay_inject_test(uint16_t port) {
+    if (maxifs < 1) return;
+
+    const char payload[] = "udp-relay-test";
+    int payload_len = (int)strlen(payload);
+    memcpy(gram + HEADER_LEN, payload, payload_len);
+
+    struct in_addr from = ifs[0].ifaddr;
+    struct in_addr dst  = ifs[0].dstaddr;
+
+    char sa[16], da[16];
+    DPRINT("<- WiFi  %s:1234 -> %s:%u  len=%d  [TEST]\n",
+           fmt_ip(from.s_addr, sa), fmt_ip(dst.s_addr, da), port, payload_len);
+    s_stats.wifi_rx++;
+
+    forward_to_all(&ifs[0], from, 1234, dst, port, payload_len);
+}

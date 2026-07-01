@@ -117,7 +117,7 @@ Shared settings are in `include/config.h`:
 | `LINK_BAUD` | 921600 | UART baud rate |
 | `LINK_RX_PIN` | 12 | UART RX GPIO |
 | `LINK_TX_PIN` | 13 | UART TX GPIO |
-| `STATUS_INTERVAL_MS` | 15000 | Periodic status print interval |
+| `STATUS_INTERVAL_MS` | 60000 | Periodic status print interval (ms) |
 
 ---
 
@@ -154,7 +154,8 @@ Each board runs a web server on port 80 accessible at:
 | IoT | `http://<ip>/` | `http://udp-relay-iot.local/` |
 
 The page displays:
-- **IP address**, **MAC address**, **RSSI** (refreshed every 5 seconds), and **relay ports** as static cards at the top
+- **mDNS name**, **IP address**, **MAC address**, **RSSI** (refreshed every 5 seconds), and **relay ports** as static cards at the top
+- A **Send Test Packet** button that injects a synthetic UDP packet on port 6666 through the relay forwarding path — useful for confirming the relay and UART link are working without needing external traffic
 - A **scrolling packet log** fed by Server-Sent Events (SSE), showing every packet the board receives or forwards in real time
 - **Colour coding**: WiFi RX = blue, UART TX = green, UART RX = orange, WiFi TX = purple, drops = red
 - **Pause/resume** scrolling by clicking the log area
