@@ -27,6 +27,7 @@ static void wifi_connect() {
     Serial.printf("[%s] WiFi: connecting to %s ", NODE_NAME, WIFI_SSID);
     Serial.flush();
     WiFi.mode(WIFI_STA);
+    WiFi.setHostname(MDNS_NAME);   // sets DHCP hostname to match mDNS name
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     while (WiFi.status() != WL_CONNECTED) {
         delay(250);
@@ -38,8 +39,14 @@ static void wifi_connect() {
                   WiFi.localIP().toString().c_str(), WiFi.RSSI());
     Serial.flush();
 
-    MDNS.begin(MDNS_NAME);
-    MDNS.addService("http", "tcp", 80);
+    MDNS.end();   // clean up before (re)starting; safe to call even if not running
+    if (!MDNS.begin(MDNS_NAME)) {
+        Serial.printf("[%s] mDNS failed to start\n", NODE_NAME);
+    } else {
+        MDNS.addService("http", "tcp", 80);
+        Serial.printf("[%s] mDNS started: http://%s.local/\n", NODE_NAME, MDNS_NAME);
+    }
+    Serial.flush();
 }
 
 static void uart_wait() {

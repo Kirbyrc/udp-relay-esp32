@@ -25,6 +25,7 @@ static AsyncWebServer   s_server(80);
 static AsyncEventSource s_events("/events");
 static bool             s_ready     = false;
 static const char      *s_node_name = "?";
+static const char      *s_mdns_name = "";
 
 // ── HTML page ─────────────────────────────────────────────────────────────────
 // Template variables: %NODE_NAME%  %NODE_IP%  %NODE_MAC%  %NODE_RSSI%  %RELAY_PORTS%
@@ -75,6 +76,10 @@ h1{color:#fff;font-size:1.2em;margin-bottom:14px}
     <div class="stat-label">Relay Ports</div>
     <div class="stat-value">%RELAY_PORTS%</div>
   </div>
+  <div class="stat">
+    <div class="stat-label">mDNS Name</div>
+    <div class="stat-value">%MDNS_NAME%.local</div>
+  </div>
 </div>
 <div id="hint">Click log to pause / resume scrolling</div>
 <div id="wrap"><div id="log"></div></div>
@@ -119,10 +124,11 @@ setInterval(() => {
 // ── Template processor ────────────────────────────────────────────────────────
 
 static String tpl(const String &var) {
-    if (var == "NODE_NAME") return String(s_node_name);
-    if (var == "NODE_IP")   return WiFi.localIP().toString();
-    if (var == "NODE_MAC")  return WiFi.macAddress();
-    if (var == "NODE_RSSI") return String(WiFi.RSSI());
+    if (var == "NODE_NAME")  return String(s_node_name);
+    if (var == "NODE_IP")    return WiFi.localIP().toString();
+    if (var == "NODE_MAC")   return WiFi.macAddress();
+    if (var == "NODE_RSSI")  return String(WiFi.RSSI());
+    if (var == "MDNS_NAME")  return String(s_mdns_name);
     if (var == "RELAY_PORTS") {
         static const uint16_t ports[] = RELAY_PORT_LIST;
         static const int nports = (int)(sizeof(ports) / sizeof(ports[0]));
@@ -140,6 +146,7 @@ static String tpl(const String &var) {
 
 void web_ui_init(const char *node_name, const char *mdns_name) {
     s_node_name = node_name;
+    s_mdns_name = mdns_name;
     s_mutex     = xSemaphoreCreateMutex();
 
     s_server.on("/", HTTP_GET, [](AsyncWebServerRequest *req) {
