@@ -9,7 +9,7 @@
 //   65001 — HDHomeRun discovery
 //    6666 — Tuya local discovery (protocol v3.1 / v3.3)
 //    6667 — Tuya local discovery (protocol v3.4+)
-#define RELAY_PORT_LIST  { 65001, 6666, 6667 }
+#define RELAY_PORT_LIST  { 65001, 6666, 6667, 32410, 32411, 32412, 32413, 32414 }
 
 // Inter-board UART
 #define LINK_BAUD     921600
