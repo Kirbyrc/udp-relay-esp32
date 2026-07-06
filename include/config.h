@@ -6,10 +6,13 @@
 #define RELAY_ID      1
 
 // All UDP ports to relay. Add or remove ports here as needed.
-//   65001 — HDHomeRun discovery
+//   65001 — HDHomeRun tuner discovery
 //    6666 — Tuya local discovery (protocol v3.1 / v3.3)
 //    6667 — Tuya local discovery (protocol v3.4+)
-#define RELAY_PORT_LIST  { 65001, 6666, 6667, 32410, 32411, 32412, 32413, 32414 }
+//   32414 - Plex GDM Client discovery
+//   34410 - Plex GDM Server discovery
+
+#define RELAY_PORT_LIST  { 65001, 6666, 6667, 32414, 34410 }
 
 // Inter-board UART
 #define LINK_BAUD     921600
