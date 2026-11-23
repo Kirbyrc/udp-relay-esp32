@@ -2,6 +2,9 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <Adafruit_NeoPixel.h>
+#include <esp_system.h>
+#include <esp_task_wdt.h>
+#include <esp_attr.h>
 #include "config.h"
 #include "relay.h"
 #include "iface_uart.h"
@@ -22,6 +25,67 @@ static void led_set(uint8_t r, uint8_t g, uint8_t b) {
     s_led.show();
 }
 
+// ── Reset tracking ───────────────────────────────────────────────────────────
+// RTC_NOINIT survives software, panic and watchdog resets (not power-on), so
+// it can carry our own restart cause and a boot count across reboots.
+
+#define RESTART_MAGIC_WIFI  0x57494649u   // "WIFI" — our WiFi-timeout restart
+
+static RTC_NOINIT_ATTR uint32_t s_restart_magic;
+static RTC_NOINIT_ATTR uint32_t s_boot_count;
+static char s_reset_desc[64];
+
+static const char *reset_reason_str(esp_reset_reason_t r) {
+    switch (r) {
+        case ESP_RST_POWERON:   return "power-on";
+        case ESP_RST_EXT:       return "external pin";
+        case ESP_RST_SW:        return "software restart";
+        case ESP_RST_PANIC:     return "CRASH (panic/exception)";
+        case ESP_RST_INT_WDT:   return "CRASH (interrupt watchdog)";
+        case ESP_RST_TASK_WDT:  return "HANG (task watchdog)";
+        case ESP_RST_WDT:       return "HANG (other watchdog)";
+        case ESP_RST_DEEPSLEEP: return "deep sleep wake";
+        case ESP_RST_BROWNOUT:  return "BROWNOUT (power dip)";
+        case ESP_RST_SDIO:      return "SDIO";
+        case ESP_RST_USB:       return "USB (reflash/reset)";
+        case ESP_RST_JTAG:      return "JTAG";
+        default:                return "unknown";
+    }
+}
+
+static void record_reset_reason() {
+    esp_reset_reason_t r = esp_reset_reason();
+    if (r == ESP_RST_POWERON || r == ESP_RST_BROWNOUT) {
+        s_boot_count    = 0;          // RTC memory is garbage after power loss
+        s_restart_magic = 0;
+    }
+    s_boot_count++;
+
+    const char *why = reset_reason_str(r);
+    if (r == ESP_RST_SW && s_restart_magic == RESTART_MAGIC_WIFI)
+        why = "WiFi connect timeout";
+    s_restart_magic = 0;
+
+    snprintf(s_reset_desc, sizeof(s_reset_desc), "%s (boot #%lu)",
+             why, (unsigned long)s_boot_count);
+    Serial.printf("[%s] reset reason: %s\n", NODE_NAME, s_reset_desc);
+    Serial.flush();
+}
+
+// ── Loop watchdog ────────────────────────────────────────────────────────────
+// Subscribes the loop task to the task watchdog. The Arduino core feeds it
+// after every loop() pass; long waits in setup/reconnect feed it explicitly.
+
+static void loop_wdt_init() {
+    esp_task_wdt_config_t cfg = {
+        .timeout_ms     = LOOP_WDT_TIMEOUT_S * 1000,
+        .idle_core_mask = 1 << 0,     // keep the core 0 idle-task check
+        .trigger_panic  = true,
+    };
+    esp_task_wdt_reconfigure(&cfg);
+    enableLoopWDT();
+}
+
 static void wifi_connect() {
     led_set(32, 0, 0);
     Serial.printf("[%s] WiFi: connecting to %s ", NODE_NAME, WIFI_SSID);
@@ -29,7 +93,16 @@ static void wifi_connect() {
     WiFi.mode(WIFI_STA);
     WiFi.setHostname(MDNS_NAME);   // sets DHCP hostname to match mDNS name
     WiFi.begin(WIFI_SSID, WIFI_PASS);
+    uint32_t start = millis();
     while (WiFi.status() != WL_CONNECTED) {
+        feedLoopWDT();
+        if (millis() - start > WIFI_CONNECT_TIMEOUT_MS) {
+            Serial.printf("\n[%s] WiFi: no connection after %lu s — restarting\n",
+                          NODE_NAME, (unsigned long)(WIFI_CONNECT_TIMEOUT_MS / 1000));
+            Serial.flush();
+            s_restart_magic = RESTART_MAGIC_WIFI;
+            ESP.restart();
+        }
         delay(250);
         Serial.print('.');
         Serial.flush();
@@ -53,7 +126,10 @@ static void uart_wait() {
     led_set(32, 32, 0);
     Serial.printf("[%s] UART: waiting for peer", NODE_NAME);
     Serial.flush();
-    while (!relay_uart_test()) { /* relay_uart_test() prints its own dots */ }
+    // Each test takes up to 3 s; feed the watchdog between attempts.
+    // No restart here: a reboot can't fix a missing peer or bad wiring.
+    while (!relay_uart_test()) { feedLoopWDT(); }
+    feedLoopWDT();
     led_set(0, 32, 0);
     Serial.printf("[%s] ready\n", NODE_NAME);
     Serial.flush();
@@ -100,6 +176,9 @@ void setup() {
                   NODE_NAME, RELAY_ID);
     Serial.flush();
 
+    record_reset_reason();
+    loop_wdt_init();
+
     // Stage 1: WiFi — loops until connected, red LED
     wifi_connect();
 
@@ -112,7 +191,8 @@ void setup() {
     uart_wait();
 
     // Stage 4: web UI — starts after WiFi and UART are confirmed up
-    web_ui_init(NODE_NAME, MDNS_NAME);
+    web_ui_init(NODE_NAME, MDNS_NAME, s_reset_desc);
+    web_ui_log("[%s] reset reason: %s", NODE_NAME, s_reset_desc);
 }
 
 void loop() {

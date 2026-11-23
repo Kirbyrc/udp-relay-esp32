@@ -29,3 +29,10 @@
 
 // Periodic status print interval (ms)
 #define STATUS_INTERVAL_MS  60000
+
+// Crash / hang recovery
+// Loop task watchdog: a hang in loop() longer than this panics and reboots.
+// Must stay above the 3 s UART link test.
+#define LOOP_WDT_TIMEOUT_S        15
+// Give up waiting for WiFi after this long and reboot for a clean retry.
+#define WIFI_CONNECT_TIMEOUT_MS   60000

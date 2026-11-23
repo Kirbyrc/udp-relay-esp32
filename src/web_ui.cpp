@@ -27,6 +27,7 @@ static AsyncEventSource s_events("/events");
 static bool             s_ready     = false;
 static const char      *s_node_name = "?";
 static const char      *s_mdns_name = "";
+static const char      *s_reset_desc = "";
 
 // ── HTML page ─────────────────────────────────────────────────────────────────
 // Template variables: %NODE_NAME%  %NODE_IP%  %NODE_MAC%  %NODE_RSSI%  %RELAY_PORTS%
@@ -83,6 +84,10 @@ h1{color:#fff;font-size:1.2em;margin-bottom:14px}
   <div class="stat">
     <div class="stat-label">Relay Ports</div>
     <div class="stat-value">%RELAY_PORTS%</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Last Reset</div>
+    <div class="stat-value">%RESET_REASON%</div>
   </div>
 </div>
 <button id="testbtn" onclick="sendTest()">Send Test Packet (port 6666)</button>
@@ -144,6 +149,7 @@ static String tpl(const String &var) {
     if (var == "NODE_MAC")   return WiFi.macAddress();
     if (var == "NODE_RSSI")  return String(WiFi.RSSI());
     if (var == "MDNS_NAME")  return String(s_mdns_name);
+    if (var == "RESET_REASON") return String(s_reset_desc);
     if (var == "RELAY_PORTS") {
         static const uint16_t ports[] = RELAY_PORT_LIST;
         static const int nports = (int)(sizeof(ports) / sizeof(ports[0]));
@@ -159,9 +165,11 @@ static String tpl(const String &var) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-void web_ui_init(const char *node_name, const char *mdns_name) {
-    s_node_name = node_name;
-    s_mdns_name = mdns_name;
+void web_ui_init(const char *node_name, const char *mdns_name,
+                 const char *reset_desc) {
+    s_node_name  = node_name;
+    s_mdns_name  = mdns_name;
+    s_reset_desc = reset_desc;
     s_mutex     = xSemaphoreCreateMutex();
 
     s_server.on("/", HTTP_GET, [](AsyncWebServerRequest *req) {
